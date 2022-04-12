@@ -2,8 +2,6 @@ from urllib import request
 from bs4 import BeautifulSoup
 from re import compile
 from ssl import create_default_context, CERT_NONE
-import networkx as nx
-import matplotlib.pyplot as plt
 from json import load, dump
 from random import choice
 from os import path, chdir
