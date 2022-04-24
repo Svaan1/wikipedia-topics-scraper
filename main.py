@@ -26,8 +26,8 @@ class Graph:
                 self.graph_dict[start].append(end)
         else:
             self.graph_dict[start] = [end]
-graph = Graph()    
-     
+graph = Graph()
+        
 # Functions
 def change_current_directory():
     chdir(dir_path)
