@@ -2,35 +2,16 @@ from urllib import request
 from bs4 import BeautifulSoup
 from re import compile
 from ssl import create_default_context, CERT_NONE
-from os import path, chdir
+from sqlite_handler import *
 
 # Variables
 regex = compile('^/wiki/[A-Za-z_]+$')
-dir_path = path.dirname(path.realpath(__file__))
 
 ctx = create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = CERT_NONE
 
-# Classes
-class Graph:
-    
-    def __init__(self):
-        self.graph_dict = {}
-
-    def add_edge(self, start, end):
-        if start in self.graph_dict:
-            if end in self.graph_dict[start]:
-                return
-            else:
-                self.graph_dict[start].append(end)
-        else:
-            self.graph_dict[start] = [end]
-graph = Graph()
-        
 # Functions
-def change_current_directory():
-    chdir(dir_path)
 def parse_html_from_url(topic):
     try:
         html = request.urlopen('https://en.wikipedia.org/wiki/' + topic, context=ctx)
@@ -38,29 +19,36 @@ def parse_html_from_url(topic):
         raise Exception('Theres a problem with given topic, try another one.')
     parsed_html = BeautifulSoup(html, 'html.parser')
     return parsed_html
+
 def find_topics_in_html(parsed_html):
     raw_anchor_tags = list()
     for anchor_tag in parsed_html.findAll('a'):
         raw_anchor_tags.append( str(anchor_tag.get('href')) )
-    filtered_anchor_tags = list(filter(regex.match, raw_anchor_tags))
-    return [anchor_tag[6:] for anchor_tag in filtered_anchor_tags][:-2] # This removes the '/wiki/' and remove the 2 last elements of the list, both Main_Page
-def topic_list_to_graph(starting_topic, ending_topic_list):
-    starting_topic = starting_topic.capitalize()
+    filtered_anchor_tags = list( filter(regex.match, raw_anchor_tags) )
+    return [anchor_tag[6:].capitalize() for anchor_tag in filtered_anchor_tags][:-2] # This removes the '/wiki/' and remove the 2 last elements of the list, both Main_Page
+
+def topics_to_database(starting_topic, ending_topic_list):
+    starting_topic = starting_topic.replace(' ','_').capitalize()
+    add_to_topics_table(starting_topic)
     for ending_topic in ending_topic_list:
-        if ending_topic.lower() == starting_topic.lower(): # If the searched topic is equal to the found one, ignore it
+        ending_topic = ending_topic.replace(' ','_').capitalize()
+        if starting_topic == ending_topic:
             continue
-        graph.add_edge(starting_topic, ending_topic) # Create a graph edge, basically [ITEM_SEARCHED, ITEM_FOUND]
+        add_to_topics_table(ending_topic)
+        add_to_relations_table(starting_topic, ending_topic)
         print('Key:', starting_topic, 'Value:', ending_topic)
+    set_as_done(starting_topic)
+
 def find_next_topic():
-    if graph.graph_dict == {}: # If the graph dictionary is empty, manual input is required
-        return input("\nDigite seu primeiro tópico: ").replace(' ','_')
+    if count_topics() == 0:
+        return input("\nDigite seu primeiro tópico: ").replace(' ','_').capitalize()
     else:
-        for key in graph.graph_dict.keys():
-            for value in graph.graph_dict[key]:
-                if value not in graph.graph_dict.keys():
-                    return value
+        return find_next_undone_topic()
+
 def main_function():
-    topic = find_next_topic()
-    parsed_html = parse_html_from_url(topic)
+    create_tables()
+    current_topic = find_next_topic()
+    parsed_html = parse_html_from_url(current_topic)
     topics_list = find_topics_in_html(parsed_html)
-    topic_list_to_graph(topic, topics_list)
+    topics_to_database(current_topic, topics_list)
+    con.commit()
